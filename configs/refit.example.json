@@ -1,0 +1,14 @@
+{
+  "appliance": "fridge",
+  "sample_seconds": 8,
+  "window_size": 59,
+  "train": [
+    {"house": "1", "path": "../data/refit/CLEAN_House1.csv", "target_column": "REPLACE_FROM_REFIT_README"}
+  ],
+  "validation": [
+    {"house": "2", "path": "../data/refit/CLEAN_House2.csv", "target_column": "REPLACE_FROM_REFIT_README"}
+  ],
+  "test": [
+    {"house": "3", "path": "../data/refit/CLEAN_House3.csv", "target_column": "REPLACE_FROM_REFIT_README"}
+  ]
+}

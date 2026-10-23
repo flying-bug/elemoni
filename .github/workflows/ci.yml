@@ -1,0 +1,23 @@
+name: CI - Elemoni SDD/TDD Gates
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt -r requirements-dev.txt
+      - name: "G1 - Spec traceability (AC/EC -> test, TC -> test)"
+        run: python scripts/spec_trace.py
+      - name: "G2/G3 - Unit + integration tests, coverage >= 80%"
+        run: python -m pytest --cov=src --cov=demo_pipeline --cov-fail-under=80
+      - name: "G5 - POC demo"
+        run: python demo_pipeline.py
