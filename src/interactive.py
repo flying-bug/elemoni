@@ -1,8 +1,9 @@
-"""Interactive signal proxies with actual aggregate-only frozen-model inference."""
+"""Interactive signal/thermal profiles with aggregate-only frozen-model inference."""
 from __future__ import annotations
 
 from collections.abc import Callable
 import threading
+import math
 from pathlib import Path
 
 import numpy as np
@@ -11,9 +12,9 @@ import pandas as pd
 from src.detective.duty_cycle import FridgeDutyCycleAnalyzer
 from src.detective.rule_engine import DeterministicRuleEngine
 from src.models.synthetic_households import EPOCH
+from src.house_physics import HouseholdPhysics, RATINGS
 
 Predictor = Callable[[np.ndarray], np.ndarray]
-RATINGS = {'fridge': 120., 'kettle': 1500., 'fan': 45., 'lights': 54., 'tv': 80., 'router': 10.}
 
 
 def checkpoint_predictor(path: Path, appliance: str) -> Predictor:
@@ -44,16 +45,20 @@ def checkpoint_predictor(path: Path, appliance: str) -> Predictor:
 
 
 class LiveHouse:
-    def __init__(self, predictors: dict[str, Predictor]) -> None:
+    def __init__(self, predictors: dict[str, Predictor], physical: bool = False) -> None:
         if set(predictors) != {'kettle', 'fridge'} or not all(callable(p) for p in predictors.values()):
             raise ValueError('Kettle and fridge predictors required')
         self.predictors = predictors
+        self.physical = physical
+        self.ratings = {k: v for k, v in RATINGS.items()
+                        if physical or k not in ('aircon', 'rice_cooker', 'washer')}
         self.lock = threading.RLock()
         self.epoch = EPOCH + 6 * 3600 + 20 * 60
         self._reset()
 
     def _reset(self) -> None:
-        self.modes = dict.fromkeys(RATINGS, 'auto')
+        self.physics = HouseholdPhysics() if self.physical else None
+        self.modes = dict.fromkeys(self.ratings, 'auto')
         self.records: list[dict[str, float]] = []
         self.bins: list[dict[str, float]] = []
         self.predictions: dict[str, list[float]] = {'kettle': [], 'fridge': []}
@@ -67,7 +72,8 @@ class LiveHouse:
             'kettle': 1500. if 23400 <= seconds < 23700 or 72000 <= seconds < 72300 else 0.,
             'fan': 45. if 11 <= hour < 14 or 18 <= hour < 23 else 0.,
             'lights': 54. if 18 <= hour < 23 else 0.,
-            'tv': 80. if 19 <= hour < 22 else 0., 'router': 10.}
+            'tv': 80. if 19 <= hour < 22 else 0., 'router': 10.,
+            'aircon': 0., 'rice_cooker': 0., 'washer': 0.}
         return {name: automatic[name] if mode == 'auto' else RATINGS[name] if mode == 'on' else 0.
                 for name, mode in self.modes.items()}
 
@@ -81,9 +87,21 @@ class LiveHouse:
                 return self.state()
             if self.failed:
                 raise ValueError('Inference failed; reset required')
-            if action == 'control' and set(command) == {'action', 'device', 'mode'}:
+            if action == 'environment' and set(command) == {'action', 'ambient_c', 'fridge_door_open', 'water_kg'}:
+                ambient, water, door = command['ambient_c'], command['water_kg'], command['fridge_door_open']
+                if (self.physics is None or type(door) is not bool
+                    or type(ambient) not in (int, float) or not math.isfinite(ambient) or not 10 <= ambient <= 40
+                    or type(water) not in (int, float) or not math.isfinite(water) or not 0.2 <= water <= 2):
+                    raise ValueError('Invalid environment settings')
+                self.physics.ambient_c = float(ambient)
+                self.physics.door_open = door
+                if water != self.physics.water_kg:
+                    self.physics.water_kg = float(water)
+                    self.physics.water_c = float(ambient)
+                    self.physics.kettle_stage = 'idle'
+            elif action == 'control' and set(command) == {'action', 'device', 'mode'}:
                 device, mode = command['device'], command['mode']
-                if not isinstance(device, str) or device not in RATINGS or mode not in ('auto', 'on', 'off'):
+                if not isinstance(device, str) or device not in self.ratings or mode not in ('auto', 'on', 'off'):
                     raise ValueError('Invalid device/mode')
                 self.modes[device] = mode
             elif action == 'step' and set(command) == {'action', 'seconds'}:
@@ -102,12 +120,12 @@ class LiveHouse:
     def _step(self, seconds: int) -> None:
         for _ in range(seconds):
             elapsed = len(self.records)
-            powers = self._powers(elapsed)
+            powers = self.physics.advance(self.modes, elapsed) if self.physics else self._powers(elapsed)
             self.records.append({'Unix': self.epoch + elapsed, 'total_w': sum(powers.values()), **powers})
             if len(self.records) % 8 == 0:
                 block = self.records[-8:]
                 self.bins.append({'Unix': block[0]['Unix'], **{
-                    key: float(np.mean([row[key] for row in block])) for key in ('total_w', *RATINGS)}})
+                    key: float(np.mean([row[key] for row in block])) for key in ('total_w', *self.ratings)}})
         count = max(0, len(self.bins) - 58)
         done = len(self.predictions['kettle'])
         if count > done:
@@ -142,7 +160,8 @@ class LiveHouse:
         with self.lock:
             if self.failed:
                 raise ValueError('Session failed; reset required')
-            powers = {key: self.records[-1][key] for key in RATINGS} if self.records else self._powers(0)
+            powers = ({key: self.records[-1][key] for key in self.ratings} if self.records else
+                      dict.fromkeys(self.ratings, 0.) if self.physics else self._powers(0))
             count = len(self.predictions['kettle'])
             evidence = None
             if count:
@@ -151,7 +170,8 @@ class LiveHouse:
                 for target in self.predictions:
                     evidence[target] = {'actual_w': center[target], 'predicted_w': self.predictions[target][-1],
                         'oracle': self._detect(target, False), 'nilm': self._detect(target, True)}
-            return {'elapsed': len(self.records), 'Unix': self.epoch + max(0, len(self.records) - 1),
+            return {'simulation': self.physics.snapshot() if self.physics else {'profile': 'signal_synthetic'},
+                'elapsed': len(self.records), 'Unix': self.epoch + max(0, len(self.records) - 1),
                 'modes': dict(self.modes), 'total_w': sum(powers.values()),
                 'devices': {name: {'power_w': value, 'mode': self.modes[name]} for name, value in powers.items()},
                 'evidence': evidence, 'chart': [{'Unix': row['Unix'], 'total_w': row['total_w']}

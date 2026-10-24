@@ -3,7 +3,7 @@
 
 **Tên tiếng Anh:** Elemoni — Household Energy Monitoring and Anomaly Detection.
 
-**Phiên bản:** 1.0 — cập nhật ngày 21/10/2026.  
+**Phiên bản:** 1.1 — cập nhật ngày 23/10/2026.
 **Nhóm thực hiện:** 3 thành viên.  
 **Thời gian đề xuất:** 8 tuần phát triển tiếp trên nền tảng hiện có, chia thành 4 sprint, mỗi sprint 2 tuần.  
 **Định hướng:** Data Engineering kết hợp Applied AI; phạm vi ban đầu là một hộ thử nghiệm.
@@ -47,7 +47,7 @@ thế thiết bị bảo vệ điện và không được mô tả là hệ th�
 | NILM Seq2Point, chuẩn bị dữ liệu và training CPU | Đã có thí nghiệm REFIT và dữ liệu tổng hợp; chưa xác nhận hiệu quả trên hộ Việt Nam |
 | Detector | Đã có luật thời gian chạy, phân tích chu kỳ tủ lạnh, tải nền ban đêm và proxy xung công suất |
 | Mô phỏng | Đã có mô hình Modelica và các cặp bình thường/bất thường có kiểm soát |
-| Dashboard | Đã có phát lại đối chứng và nhà tương tác theo lịch/công tắc; nhà tương tác là tải tín hiệu đơn giản |
+| Dashboard | Đã có phát lại đối chứng và nhà tương tác chín tải; mô hình nhiệt Python cho tủ/phòng/ấm, chu trình nồi cơm/máy giặt; chưa hiệu chuẩn thực tế |
 | Interface nguồn dữ liệu | Đã có mô phỏng, CSV và callback cho driver; chưa có driver bộ đo thật |
 | Thu thập/lưu trữ vận hành | Chưa có pipeline MQTT/database bền vững cho dữ liệu đo thật |
 | Thông báo ngoài dashboard | Chưa tích hợp Telegram hoặc dịch vụ gửi thông báo |

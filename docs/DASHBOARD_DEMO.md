@@ -11,17 +11,41 @@ Mở `http://127.0.0.1:8765`. Dùng `--port 8766` nếu cổng bị chiếm.
 **Nhà tương tác mới:** mở `http://127.0.0.1:8765/live` để bật/tắt tùy ý hoặc
 để thiết bị tự chạy theo lịch. Mỗi thiết bị có Tự động/Bật/Tắt. Chế độ Bật/Tắt
 giữ tới khi bạn đổi lại Tự động; tác động từ mẫu tiếp theo khi chạy hoặc tiến thời
-gian. Có sáu tải tín hiệu: tủ lạnh, ấm, quạt, đèn, TV, router. Không phải mô phỏng
-nhiệt Modelica; không phải điều khiển thiết bị thật.
+gian. Từ23/10/2026 có chín thiết bị: tủ lạnh, ấm, quạt, đèn, TV, router,
+điều hòa, nồi cơm, máy giặt. Python mô phỏng nhiệt tủ/phòng/nước ở bước1 giây;
+nồi cơm và máy giặt theo chu trình công suất. Không chạy solver Modelica trực
+tuyến; tham số chưa hiệu chuẩn và không điều khiển thiết bị thật.
 
 Nhấn Chạy hoặc Tiến1 phút để sinh mẫu1 giây. NILM chạy lại thực sự trên điện
 tổng, gom đủ8 giây và đủ59 bin trước khi xuất dự đoán đầu tiên (472 giây mô
 phỏng). Xem hai đồng hồ để biết độ trễ; không dùng công suất chuẩn làm input
-NILM. Để thử quên tắt, giữ ấm ở Bật, chạy tốc độ×60 hoặc×240 và chờ đủ thời
-gian máy đánh giá. Model vẫn có thể bỏ sót. Đặt lại để xóa dữ liệu/override.
+NILM. Bật chỉ cấp nguồn: tủ/điều hòa vẫn theo thermostat, ấm tự ngắt khi sôi;
+không giữ gia nhiệt vô hạn để tạo cảnh báo. Dùng bộ phát lại cố định bên dưới
+để xem ca quên tắt. Model vẫn có thể bỏ sót, chưa xác nhận trên phân bố tải mới.
+Đặt lại để xóa dữ liệu/override, phục hồi nhiệt độ và điện năng ban đầu.
 Một phiên tương tác dùng chung cho các tab, tối đa24 giờ; lỗi inference yêu cầu
 đặt lại. Bộ phát lại đối chứng bên dưới giữ nguyên dữ liệu cũ.
 Ctrl+C trong terminal để dừng. Server chỉ lắng nghe loopback, không công bố lên mạng.
+
+## Thử nhà ảo có trạng thái
+
+1. Mở `/live`, chọn tốc độ×60 hoặc×240. Bật ấm, tiến thời gian: nhiệt độ nước
+   tăng tới100°C, trạng thái chuyển đã sôi/tự ngắt và công suất về0 ở giây kế.
+   Nước tiếp tục nguội. Tắt rồi Bật để đun lại; không bỏ qua cơ chế tự ngắt.
+2. Ở phần Môi trường, đổi lượng nước hoặc nhiệt độ10–40°C, chọn cửa tủ mở,
+   bấm Áp dụng. Đổi lượng nước thay nước về nhiệt độ môi trường và ngừng đun;
+   Tắt rồi Bật ấm để bắt đầu mẻ mới. Cửa mở thêm tải nhiệt cho tủ lạnh.
+3. Bật điều hòa: theo dõi nhiệt độ phòng và chu kỳ máy nén25–26°C; Bật không
+   có nghĩa máy nén luôn chạy. Tắt nguồn vẫn cho nhiệt độ trao đổi với môi trường.
+4. Bật nồi cơm: nấu20 phút600W rồi giữ ấm40W. Bật máy giặt: giặt10 phút400W,
+   xả5 phút100W, vắt5 phút300W rồi hoàn tất0W. Tắt hủy chu trình, bật lại bắt đầu mới.
+5. Theo dõi tổng kWh và từng thiết bị. Đây là tích phân công suất mô phỏng,
+   không phải hóa đơn. Không đổi giá điện thành cam kết chi phí.
+
+Lịch cố định, cùng điều kiện cho cùng kết quả. Nhiệt độ là trạng thái cuối bước
+1 giây; công suất là giá trị trong giây vừa mô phỏng. Trước bước đầu chưa có
+phép đo nên công suất/điện năng bằng0. Xem kế hoạch và giới hạn tại
+`docs/HOUSE_SIMULATION_PLAN.md`. Chưa kiểm tra bố cục/tương tác bằng browser tự động.
 
 ## Trình diễn
 

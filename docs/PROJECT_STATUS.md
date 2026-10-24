@@ -1,4 +1,4 @@
-# Elemoni — trạng thái nghiên cứu ngày 21/10/2026
+# Elemoni — trạng thái nghiên cứu ngày 23/10/2026
 
 Mục đích: điện tổng → bóc tách NILM → công suất thiết bị → phát hiện bất thường/
 lãng phí cho bối cảnh hộ gia đình Việt Nam. Mô phỏng là công cụ kiểm chứng;
@@ -6,9 +6,12 @@ chưa có kết luận độ chính xác trên hộ thực tế tại Việt Nam
 
 ## Đã có
 
-- Nhà tương tác tại `/live`: sáu tải theo lịch, override Tự động/Bật/Tắt, sinh
-  điện tổng mới và inference checkpoint thật. Chưa có driver hoặc mô hình vật lý
-  thiết bị; có độ trễ cửa sổ, không dùng dự đoán cũ cho thao tác công tắc mới.
+- Nhà tương tác tại `/live`: chín thiết bị, override Tự động/Bật/Tắt, mô hình
+  nhiệt Python cho tủ/phòng/ấm, chu trình nồi cơm/máy giặt, môi trường/cửa/nước
+  và kWh từng tải. Có thermostat và ấm tự ngắt; chưa hiệu chuẩn bằng số đo thật.
+  Sinh điện tổng mới và inference checkpoint thật, giữ độ trễ cửa sổ; không dùng
+  dự đoán cũ cho công tắc mới. Model chưa được xác nhận trên phân bố tải mới.
+  Modelica vẫn là nhánh mô phỏng offline. Chưa có driver phần cứng.
 
 - Dashboard cục bộ hai bên: `python -X utf8 -m src.dashboard`. Bốn ca chẩn đoán
   tủ lạnh/ấm, thời gian phát lại, biểu đồ và detector Oracle/NILM cùng đoạn dữ liệu.

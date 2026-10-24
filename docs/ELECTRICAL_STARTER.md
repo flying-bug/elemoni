@@ -34,6 +34,33 @@ có rò điện mô phỏng dưới 1e-7 W, còn nhãn công suất trung bình 
 Kiểm tra tự động (cần `omc` trên PATH hoặc cài Windows mặc định):
 `python -m pytest tests/test_electrical_model.py -q`.
 
+### Lỗi quyền biên dịch trên Windows
+
+Nếu log có `Failed to build model`, `couldn't create signal pipe` hoặc
+`CreateFileMapping ... Win32 error 5` từ `tools/msys/usr/bin/sh.exe`, hãy kiểm tra
+quyền thực thi của môi trường chạy. Trong phiên kiểm tra ngày 23/10/2026,
+sandbox chặn thao tác của MSYS; chạy cùng test ngoài sandbox đã vượt qua
+các test mô hình điện. Không cần sửa phương trình mô hình để xử lý lỗi này.
+
+Chạy từ PowerShell thông thường tại thư mục dự án, hoặc cấp quyền chạy ngoài
+sandbox cho lệnh kiểm thử trong công cụ AI:
+
+```powershell
+.venv/Scripts/python.exe -m pytest tests/test_electrical_model.py tests/test_fridge_model.py tests/test_house_model.py tests/test_paired_detective.py tests/test_synthetic_households.py -p no:cacheprovider
+```
+
+`-p no:cacheprovider` tránh ghi cache pytest nếu thư mục cache bị hạn chế quyền;
+tùy chọn này không khắc phục lỗi quyền MSYS. Không tắt các assertion hoặc bỏ qua
+test mô phỏng để coi lần chạy là đạt.
+
+Kết quả kiểm tra ngày 23/10/2026: nhóm mô hình điện, tủ lạnh, nhà, đối chứng
+detector và sinh dữ liệu đã chạy ngoài sandbox. Riêng `test_extend_real` gặp
+`WinError 4551: An Application Control policy has blocked this file` khi khởi
+chạy executable mới tạo; chạy lại riêng test này đạt (1 passed). Chưa xác định
+nguyên nhân của lần chặn đó; không thay đổi hoặc vô hiệu hóa chính sách Windows.
+144 test ở các nhóm còn lại cũng đạt. Đây là kết quả theo các nhóm và lần chạy
+lại, chưa phải một lần chạy toàn bộ suite xanh liên tục.
+
 Tham khảo chính thức:
 - https://build.openmodelica.org/Documentation/OpenModelica.Scripting.simulate.html
 - https://build.openmodelica.org/Documentation/Modelica.Electrical.Analog.Basic.VariableResistor.html

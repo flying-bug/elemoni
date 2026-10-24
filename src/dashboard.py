@@ -166,7 +166,7 @@ def main() -> None:
     torch.set_num_threads(4)
     live = LiveHouse({
         'kettle': checkpoint_predictor(ROOT / 'artifacts/kettle-pilot-20261021/train/best.pt', 'kettle'),
-        'fridge': checkpoint_predictor(ROOT / 'artifacts/synthetic-resume-20261021/train/best.pt', 'synthetic_fridge')})
+        'fridge': checkpoint_predictor(ROOT / 'artifacts/synthetic-resume-20261021/train/best.pt', 'synthetic_fridge')}, physical=True)
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
