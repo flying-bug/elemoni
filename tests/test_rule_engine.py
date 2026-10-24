@@ -10,6 +10,72 @@ import pytest
 from tests.conftest import T0, make_series
 
 
+@pytest.mark.parametrize("detector", ["forgotten", "spikes"])
+@pytest.mark.parametrize("bad", [float("nan"), None, float("inf"), -float("inf"), "broken"])
+@pytest.mark.parametrize("position", [0, 10, 20, "single", "off_tail"])
+def test_invalid_power_raises(rule_engine, detector: str, bad: object, position: object) -> None:
+    """
+    @spec: SPEC-ELM-L1#EC-07
+    @tc: L1-TC-013
+    """
+    powers = [1800.0] * 21
+    if position == "single":
+        powers = [bad]
+    elif position == "off_tail":
+        powers[10] = bad
+        powers[-1] = 0.0
+    else:
+        powers[position] = bad
+    series = pd.Series(powers)
+    ts = pd.Series(pd.date_range(T0, periods=len(powers), freq="min"))
+    with pytest.raises(ValueError, match="power"):
+        if detector == "forgotten":
+            rule_engine.check_forgotten_appliance("kettle", series, ts)
+        else:
+            rule_engine.check_micro_arc_and_spikes(series, ts)
+
+
+@pytest.mark.parametrize("detector", ["forgotten", "spikes"])
+@pytest.mark.parametrize("defect", [
+    "nat_first", "nat_mid", "nat_last", "unparseable", "reversed",
+    "duplicate", "missing", "extra", "single_nat",
+])
+@pytest.mark.parametrize("off_tail", [False, True])
+def test_invalid_timestamps_raise(rule_engine, detector: str, defect: str, off_tail: bool) -> None:
+    """
+    @spec: SPEC-ELM-L1#EC-08
+    @tc: L1-TC-014
+    """
+    powers = [1800.0] * 21
+    times: list[object] = list(pd.date_range(T0, periods=21, freq="min"))
+    if defect == "nat_first":
+        times[0] = pd.NaT
+    elif defect == "nat_mid":
+        times[10] = pd.NaT
+    elif defect == "nat_last":
+        times[-1] = pd.NaT
+    elif defect == "unparseable":
+        times[10] = "broken"
+    elif defect == "reversed":
+        times.reverse()
+    elif defect == "duplicate":
+        times[10] = times[9]
+    elif defect == "missing":
+        times = times[:-1]
+    elif defect == "extra":
+        times.append(times[-1] + timedelta(minutes=1))
+    else:
+        powers, times = [1800.0], [pd.NaT]
+    if off_tail:
+        powers[-1] = 0.0
+    series, ts = pd.Series(powers), pd.Series(times)
+    with pytest.raises(ValueError, match="timestamp"):
+        if detector == "forgotten":
+            rule_engine.check_forgotten_appliance("kettle", series, ts)
+        else:
+            rule_engine.check_micro_arc_and_spikes(series, ts)
+
+
 def test_kettle_forgotten_15_minutes_triggers_danger(rule_engine):
     """
     @spec: SPEC-ELM-L1#AC-01

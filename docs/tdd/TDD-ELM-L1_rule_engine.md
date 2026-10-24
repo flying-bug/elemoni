@@ -1,8 +1,8 @@
 # TEST-DRIVEN DEVELOPMENT SPECIFICATION — Lớp 1: Safety Rule Engine
 
 **Document ID:** `ELM-TDD-L1-001`
-**Version:** 1.0
-**Date:** 2026-10-13
+**Version:** 1.2
+**Date:** 2026-10-25
 **Status:** In Review
 **Standard:** ISO/IEC/IEEE 29119-3:2021 — Software Testing Part 3: Test Documentation (theo `TDD_TEMPLATE_V1`)
 **Author:** Claude Code — soạn thảo
@@ -11,7 +11,7 @@
 **Classification:** Internal
 
 **References:**
-- `docs/sdd/SPEC-ELM-L1_rule_engine_safety.md` (v1.1.0) — Spec gốc
+- `docs/sdd/SPEC-ELM-L1_rule_engine_safety.md` (v1.3.0) — Spec gốc
 - `AGENTS.md` — quy ước SDD/TDD, nguyên tắc fail-closed
 - `src/detective/rule_engine.py` — code dưới kiểm thử
 
@@ -23,6 +23,8 @@
 
 | Ngày | Người thực hiện | Nội dung thay đổi |
 |---|---|---|
+| 2026-10-25 | Claude Code | Logic Issue L7 và L1-TC-014 cho timestamp hỏng theo spec v1.3.0; giữ nguyên ngưỡng |
+| 2026-10-23 | Codex | Đặc tả L1-TC-013 cho công suất hỏng theo spec v1.2.0; giữ nguyên ngưỡng |
 | 2026-10-13 | Claude Code | Khởi tạo tài liệu — TDD spec cho Lớp 1; RED 4 TC, GREEN 12/12 |
 
 ## MỤC LỤC
@@ -36,7 +38,7 @@
 |---|---|
 | Feature / Gap ID | `GAP-ELM-L1` |
 | Module | Detective / Lớp 1 — Deterministic Rule Engine |
-| Spec gốc | `SPEC-ELM-L1` v1.1.0 |
+| Spec gốc | `SPEC-ELM-L1` v1.3.0 |
 | Priority | 🔴 P0 (an toàn cháy nổ) |
 | Sprint | POC Pha 2 |
 | Milestone | POC Detective Engine |
@@ -56,6 +58,8 @@
 | L3 | Micro-arc đếm **mọi** cạnh lên trên toàn chuỗi; tham số `max_duration_seconds`, `cluster_window_minutes` không được dùng nhưng thông điệp ghi "trong 10 phút" | Định nghĩa xung ở `SPEC-ELM-L1` §3.2 | Chỉ đếm xung ngắn (≤ 5 s) trong 10 phút gần nhất (EC-06, L1-TC-010, L1-TC-011) |
 | L4 | Nhánh `if count_active == 0` không bao giờ chạy (đã kiểm `is_active[-1]`) | Zero bloat | Xóa ở bước REFACTOR |
 | L5 | README ghi "P99 < 1s, độ chính xác 100%" | Chưa có benchmark | Ghi vào Out-of-Scope của spec; không có TC đo độ trễ |
+| L6 | NaN so ngưỡng thành False, làm mất cảnh báo hoặc cắt chuỗi ON; detector xung cũng chưa kiểm dữ liệu | Công suất hỏng phải fail-loud trước trả sớm, không tự điền/bỏ mẫu | Cả hai detector ném ValueError chứa power cho NaN/thiếu/vô cực/không phải số, kể cả một mẫu và mẫu cuối đã tắt (EC-07, L1-TC-013) |
+| L7 | Timestamp chưa được kiểm: NaT cho thời lượng NaN (`NaN >= 15` là False), timestamp đảo ngược cho thời lượng âm → ấm chạy 20 phút trả `None`; lệch độ dài ném `IndexError` hoặc lấy nhầm `t_now`; NaT làm detector xung bỏ đếm xung | Timestamp hỏng phải fail-loud (`AGENTS.md` §3), không sắp xếp/bỏ/nội suy | Cả hai detector ném ValueError chứa timestamp cho NaT, chuỗi không parse được, lệch độ dài, đảo thứ tự, trùng lặp — kể cả một mẫu và mẫu cuối đã tắt; rỗng/rỗng vẫn `None`, gap tăng chặt vẫn hợp lệ (EC-08, L1-TC-014) |
 
 ## 3. Test Design Specification (TDS)
 
@@ -200,6 +204,36 @@ Lớp 1 Rule Engine gồm:
 
 ## 5. Red-Green-Refactor Tracker
 
+### L1-TC-013 — Công suất hỏng phải fail-loud
+- **Spec:** `SPEC-ELM-L1#EC-07`; dữ liệu tổng hợp, cả hai detector.
+- **Steps:** Chèn NaN, None, ±inf hoặc chuỗi không phải số vào đầu/giữa/cuối
+  chuỗi 21 mẫu; kiểm thêm chuỗi một mẫu và chuỗi kết thúc bằng 0 W.
+- **Expected:** `ValueError` chứa `power`, không trả `None` hoặc `SafetyAlert`.
+- **Current Status:** GREEN cục bộ: 64 test L1 đạt ngày 23/10/2026.
+- **RED:** 50/50 tổ hợp mới thất bại trước sửa code (không ném lỗi hoặc thông điệp không đúng hợp đồng).
+- **GREEN:** Thêm helper kiểm tra công suất chung trước mọi trả sớm; không đổi ngưỡng/gap.
+- **Verification:** `spec_trace.py` đạt 124/124 AC/EC và 94/94 TC; demo POC đạt.
+  Toàn suite ngoài sandbox: 222 passed, 15 failed; nhóm mô phỏng gặp Device Guard/
+  Application Control (`WinError 4551`) và thiếu kết quả/assertion mô phỏng.
+  Chưa xác nhận toàn suite xanh. Đo coverage riêng không hoàn tất do import pandas/
+  numpy thất bại khi bật pytest-cov; không công bố coverage mới.
+
+### L1-TC-014 — Timestamp hỏng phải fail-loud
+- **Severity:** CRITICAL · **Spec:** `SPEC-ELM-L1#EC-08` · **CWE:** CWE-754 · **Condition Ref:** TC-COND-L1-004
+- **Test File:** `tests/test_rule_engine.py::test_invalid_timestamps_raise`
+- **Preconditions:** Dữ liệu tổng hợp, 21 mẫu 1800 W, mỗi phút một mẫu (bản không lỗi cho cảnh báo ấm).
+- **Steps:** Cả hai detector; lỗi NaT ở đầu/giữa/cuối, chuỗi `"broken"`, timestamp đảo ngược,
+  trùng lặp, thiếu một timestamp, thừa một timestamp; thêm biến thể mẫu cuối 0 W và một mẫu NaT.
+- **Expected (PASS):** `ValueError` chứa `timestamp`.
+- **Expected (FAIL):** `None` (thời lượng NaN/âm), `IndexError`, hoặc cảnh báo từ timestamp hỏng.
+- **Current Status:** 🟢 Passing (25/10/2026).
+- **RED:** 36/36 tổ hợp thất bại trước sửa code — 32 `DID NOT RAISE ValueError`,
+  2 `TypeError` (chuỗi không parse trong detector xung), 2 thông điệp không chứa `timestamp`.
+- **GREEN:** Helper `_validated_times` dùng chung, gọi sau `_validated_power` và trước mọi trả sớm;
+  không đổi ngưỡng/gap/bộ đếm.
+- **Verification:** toàn suite 286 passed (gồm test Modelica, lượt này không bị Device Guard chặn);
+  `spec_trace.py` 128/128 AC/EC, 98/98 TC; demo POC đạt (chạy với `-X utf8`).
+
 | TC ID | Test File | 🔴 RED confirmed | 🟢 GREEN (commit) | 🔵 REFACTOR note |
 |---|---|---|---|---|
 | L1-TC-001 | `tests/test_rule_engine.py:13` | N/A — characterization (code có trước) | N/A — chưa có git | — |
@@ -214,6 +248,8 @@ Lớp 1 Rule Engine gồm:
 | L1-TC-010 | `tests/test_rule_engine.py:148` | [x] trả `SafetyAlert` | N/A — chưa có git | — |
 | L1-TC-011 | `tests/test_rule_engine.py:159` | [x] trả `SafetyAlert` | N/A — chưa có git | — |
 | L1-TC-012 | `tests/test_rule_engine.py:170` | N/A — characterization | N/A — chưa có git | Xóa nhánh chết `count_active == 0` |
+| L1-TC-013 | `tests/test_rule_engine.py::test_invalid_power_raises` | 50 failed trước sửa, 23/10/2026 | 64 test L1 passed sau sửa | Helper `_validated_power` dùng chung hai detector |
+| L1-TC-014 | `tests/test_rule_engine.py::test_invalid_timestamps_raise` | 36 failed trước sửa, 25/10/2026 | 286 passed toàn suite sau sửa | Helper `_validated_times` dùng chung hai detector |
 
 ## 6. Entry / Exit Criteria
 

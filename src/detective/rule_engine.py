@@ -11,6 +11,34 @@ import numpy as np
 import pandas as pd
 
 
+def _validated_power(series: pd.Series) -> np.ndarray:
+    """Reject corrupt power before detector comparisons or early returns."""
+    try:
+        values = series.to_numpy(dtype=float, na_value=np.nan)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("power must contain finite numeric values") from exc
+    if not np.isfinite(values).all():
+        raise ValueError("power must contain finite numeric values")
+    return values
+
+
+def _validated_times(timestamps: pd.Series, length: int) -> pd.Series:
+    """Reject timestamps that would turn a duration into NaN/negative (SPEC-ELM-L1#EC-08)."""
+    try:
+        times = pd.to_datetime(pd.Series(timestamps).reset_index(drop=True))
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("timestamps must be valid datetimes") from exc
+    if not pd.api.types.is_datetime64_any_dtype(times):
+        raise ValueError("timestamps must be valid datetimes")
+    if len(times) != length:
+        raise ValueError(f"timestamps length {len(times)} != power length {length}")
+    if times.isna().any():
+        raise ValueError("timestamps must not contain missing values")
+    if not (times.is_monotonic_increasing and times.is_unique):
+        raise ValueError("timestamps must be strictly increasing")
+    return times
+
+
 @dataclass
 class SafetyAlert:
     timestamp: pd.Timestamp
@@ -71,11 +99,13 @@ class DeterministicRuleEngine:
         p_thresh = rule["power_threshold"]
         max_dur = rule["max_duration_minutes"]
 
+        values = _validated_power(series)
+        times = _validated_times(timestamps, len(values))
         if len(series) == 0:
             return None
 
         # Tìm các mẫu liên tiếp gần nhất mà P >= p_thresh
-        is_active = series.values >= p_thresh
+        is_active = values >= p_thresh
         if not is_active[-1]:
             # Mẫu cuối cùng đang tắt -> Không có nguy cơ tức thời
             return None
@@ -89,11 +119,11 @@ class DeterministicRuleEngine:
                 break
 
         # Tính thời lượng từ khoảng cách thời gian giữa timestamp bắt đầu và hiện tại
-        last_idx = len(timestamps) - 1
+        last_idx = len(times) - 1
         first_active_idx = last_idx - count_active + 1
 
-        t_start = pd.to_datetime(timestamps.iloc[first_active_idx])
-        t_now = pd.to_datetime(timestamps.iloc[last_idx])
+        t_start = times.iloc[first_active_idx]
+        t_now = times.iloc[last_idx]
         duration_min = (t_now - t_start).total_seconds() / 60.0
 
         if duration_min >= max_dur:
@@ -125,11 +155,11 @@ class DeterministicRuleEngine:
         Một xung = cạnh lên > ngưỡng, rồi cạnh xuống < -ngưỡng trong <= max_duration_seconds.
         Chỉ đếm xung bắt đầu trong cluster_window_minutes gần nhất (SPEC-ELM-L1 §3.2).
         """
+        values = _validated_power(total_power_series)
+        times = _validated_times(timestamps, len(values)).to_numpy()
         if len(total_power_series) < 2:
             return None
 
-        values = total_power_series.to_numpy(dtype=float)
-        times = pd.to_datetime(pd.Series(timestamps)).to_numpy()
         diff = np.diff(values)  # diff[k] = P[k+1] - P[k]
         t_now = pd.Timestamp(times[-1])
         window_start = np.datetime64(t_now - pd.Timedelta(minutes=cluster_window_minutes))

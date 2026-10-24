@@ -1,13 +1,13 @@
 ---
 id: SPEC-ELM-L1
 title: "Lớp 1 — Deterministic Safety Rule Engine (Quên tắt thiết bị & Chập vi mô)"
-version: 1.1.0
+version: 1.3.0
 status: APPROVED-PENDING-REVIEW
 owner: "[Tên] — Tech Lead Elemoni"
 target_modules:
   - "src/detective/rule_engine.py"
 created_at: 2026-10-13
-updated_at: 2026-10-13
+updated_at: 2026-10-25
 ---
 
 # Specification: SPEC-ELM-L1 — Deterministic Safety Rule Engine
@@ -15,6 +15,8 @@ updated_at: 2026-10-13
 ## Changelog
 | Ngày | Version | Người thực hiện | Nội dung |
 |---|---|---|---|
+| 2026-10-25 | 1.3.0 | Claude Code | Từ chối timestamp NaT/không parse được/lệch độ dài/không tăng chặt ở cả hai detector trước mọi nhánh trả sớm (EC-08); giữ nguyên ngưỡng |
+| 2026-10-23 | 1.2.0 | Codex | Từ chối công suất NaN/vô cực/không phải số ở cả hai detector trước mọi nhánh trả sớm; giữ nguyên ngưỡng |
 | 2026-10-13 | 1.0.0 | Claude Code (soạn) | Viết ngược (reverse-spec) từ code hiện có |
 | 2026-10-13 | 1.1.0 | Claude Code (soạn) | Bổ sung EC-01, EC-04, EC-06 theo Logic Issues L1-L1..L1-L3 trong `TDD-ELM-L1` |
 
@@ -64,7 +66,25 @@ Cảnh báo khi số xung `>= min_spike_count` (mặc định 3).
 | iron — Bàn là | 800.0 | 90.0 |
 | hair_dryer — Máy sấy tóc | 1000.0 | 30.0 |
 
+### 3.5 Kiểm tra công suất đầu vào
+Cả hai detector phải kiểm tra toàn bộ chuỗi công suất trước khi so ngưỡng hoặc
+trả sớm vì mẫu cuối dưới ngưỡng hay chuỗi ít hơn hai mẫu. NaN, giá trị thiếu,
+vô cực và giá trị không chuyển được sang số thực phải ném `ValueError` chứa
+`power`. Không nội suy, điền 0 hoặc bỏ mẫu lỗi. Chuỗi rỗng vẫn theo EC-01;
+key thiết bị lạ vẫn theo EC-04. Không thay đổi ngưỡng, thời lượng hoặc xử lý gap.
+
+### 3.6 Kiểm tra timestamp đầu vào
+Sau khi kiểm tra công suất (§3.5) và trước mọi so ngưỡng hay trả sớm, cả hai
+detector phải kiểm tra toàn bộ chuỗi timestamp. Phải ném `ValueError` chứa
+`timestamp` khi: (a) số timestamp khác số mẫu công suất; (b) có giá trị thiếu/NaT
+hoặc không chuyển được sang thời điểm; (c) chuỗi không tăng chặt (đảo thứ tự hoặc
+trùng lặp). Không sắp xếp lại, bỏ hoặc nội suy timestamp: thời lượng âm/NaN từ
+timestamp hỏng không được biến thành "không cảnh báo". Hai chuỗi cùng rỗng vẫn
+theo EC-01. Gap hợp lệ (tăng chặt nhưng thưa) vẫn theo EC-03. Không đổi ngưỡng.
+
 ## 4. Edge Cases
+- **EC-08**: Timestamp không hợp lệ — NaT ở đầu/giữa/cuối, giá trị không parse được, độ dài lệch chuỗi công suất, đảo thứ tự hoặc trùng lặp, kể cả khi mẫu cuối đã tắt hoặc chỉ có một mẫu → `ValueError` chứa `timestamp` ở cả hai detector; không trả `None` hoặc cảnh báo.
+- **EC-07**: Công suất không hợp lệ ở đầu/giữa/cuối chuỗi, kể cả một mẫu duy nhất hoặc mẫu cuối hợp lệ đã tắt → `ValueError` ở cả hai detector; không trả `None` hoặc cảnh báo từ dữ liệu hỏng.
 - **EC-01**: Series rỗng → trả về `None`, không ném `IndexError`.
 - **EC-02**: Biên thời lượng: chạy đúng `max_duration_minutes` (15,0 phút) → cảnh báo; 14,0 phút → không cảnh báo.
 - **EC-03**: Khoảng trống dữ liệu giữa các mẫu active (mất gói IoT) **không** reset bộ đếm — fail-closed: thiếu dữ liệu không phải bằng chứng thiết bị đã tắt.
@@ -82,6 +102,8 @@ Cảnh báo khi số xung `>= min_spike_count` (mặc định 3).
 ## 6. Implementation & Traceability Matrix
 | Mã | Loại | Mô tả | Module | Test neo (`@spec`) | TC |
 |---|:---:|---|---|---|---|
+| EC-07 | EC | Công suất hỏng phải fail-loud | `rule_engine.py` | `tests/test_rule_engine.py` | L1-TC-013 |
+| EC-08 | EC | Timestamp hỏng phải fail-loud | `rule_engine.py` | `tests/test_rule_engine.py` | L1-TC-014 |
 | AC-01 | AC | Ấm siêu tốc quên tắt | `rule_engine.py` | `tests/test_rule_engine.py` | L1-TC-001 |
 | AC-02 | AC | Bàn là, máy sấy tóc | `rule_engine.py` | `tests/test_rule_engine.py` | L1-TC-003 |
 | AC-03 | AC | Đã tắt → không cảnh báo | `rule_engine.py` | `tests/test_rule_engine.py` | L1-TC-004 |
